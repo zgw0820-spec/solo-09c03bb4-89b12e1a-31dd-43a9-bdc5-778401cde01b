@@ -17,6 +17,7 @@
   <p class="muted">
     内存约束：任意时刻驻留输入记录 ≤ 256 条、暂存结果 ≤ 256 条；
     配对在后台流式执行，写盘中断后可从断点继续，已确认批次不重算。
+    同一时间最多执行两份作业；多出的作业在队列中等候（不占执行线程）。
   </p>
 </div>
 
@@ -32,6 +33,7 @@
         {% if j.phase == 'done' %}<span class="badge b-done">已完成</span>
         {% elif j.phase == 'failed' %}<span class="badge b-fail">失败</span>
         {% elif j.running %}<span class="badge b-run">运行中</span>
+        {% elif j.queued or j.phase == 'queued' %}<span class="badge b-queue">等候执行</span>
         {% else %}<span class="badge b-part">待恢复</span>{% endif %}
       </td>
       <td>{{ j.confirmed_pairs }}</td>

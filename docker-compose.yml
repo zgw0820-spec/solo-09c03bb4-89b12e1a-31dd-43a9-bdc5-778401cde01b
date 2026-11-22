@@ -5,10 +5,24 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # 命名卷持久化作业目录，容器重启后已确认批次仍在、可断点续跑
+      # 命名卷持久化作业目录：容器重启后已确认批次仍在，可断点续跑
       - layer_matcher_data:/data/jobs
     environment:
       - JOBS_DIR=/data/jobs
+      # 同一实例最多同时执行两份；重启前接单的作业最多占一份
+      - MAX_CONCURRENT_JOBS=2
+      - MAX_RECOVERED_RUNNING=1
+    healthcheck:
+      # slim 镜像没有 curl，用标准库探活；启动恢复在后台跑，不阻塞这里
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).read()
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
 volumes:

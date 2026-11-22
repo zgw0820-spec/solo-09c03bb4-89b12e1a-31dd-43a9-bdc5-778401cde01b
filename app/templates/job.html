@@ -8,6 +8,7 @@
     {% if job.phase == 'done' %}<span class="badge b-done">已完成</span>
     {% elif job.phase == 'failed' %}<span class="badge b-fail">失败</span>
     {% elif job.running %}<span class="badge b-run">运行中（{{ job.phase }}）</span>
+    {% elif job.queued or job.phase == 'queued' %}<span class="badge b-queue">已接单，等候执行</span>
     {% else %}<span class="badge b-part">中断待恢复（{{ job.phase }}）</span>{% endif %}
   </p>
   <table>
@@ -36,11 +37,16 @@
 
 {% if job.phase != 'done' and job.phase != 'failed' %}
 <script>
+const initialStatus = {{ (job.queue_status or job.phase) | tojson }};
 async function refresh() {
   const r = await fetch("{{ url_for('status', job_id=job.job_id) }}");
   const j = await r.json();
   document.getElementById('pair-count').textContent = j.confirmed_pairs;
-  if (j.phase === 'done' || j.phase === 'failed') { location.reload(); return; }
+  // 状态变化（如等候→运行）时刷新整页，让徽标随之更新
+  if (j.phase === 'done' || j.phase === 'failed'
+      || j.queue_status !== initialStatus) {
+    location.reload(); return;
+  }
   setTimeout(refresh, 1500);
 }
 setTimeout(refresh, 1500);

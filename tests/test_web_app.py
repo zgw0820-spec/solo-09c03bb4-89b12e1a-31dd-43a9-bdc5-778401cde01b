@@ -39,10 +39,19 @@ class WebFlowTests(unittest.TestCase):
         os.makedirs(webapp.JOBS_ROOT, exist_ok=True)
         webapp._recovered = False
         webapp._threads.clear()
+        webapp._tracked.clear()
+        webapp._queued_new.clear()
+        webapp._queued_recovered.clear()
+        webapp._queued_origin.clear()
+        webapp._running_origin.clear()
         webapp.app.config["TESTING"] = True
         self.client = webapp.app.test_client()
 
     def tearDown(self) -> None:
+        for job_id in list(webapp._threads):
+            thread = webapp._threads.get(job_id)
+            if thread is not None:
+                thread.join(timeout=30)
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _upload(self, tasks, machines):

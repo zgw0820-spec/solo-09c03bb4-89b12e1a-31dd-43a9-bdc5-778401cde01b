@@ -151,6 +151,18 @@ def _bucket_index(key: str) -> int:
     return h % PARTITION_COUNT
 
 
+def _fsync_dir(directory: str) -> None:
+    """把目录项（rename 结果）也刷到盘上，保证重启后可见。"""
+    try:
+        fd = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _atomic_write_json(path: str, data: dict) -> None:
     directory = os.path.dirname(path) or "."
     fd, tmp = tempfile.mkstemp(prefix=".state-", suffix=".tmp", dir=directory)
@@ -160,10 +172,15 @@ def _atomic_write_json(path: str, data: dict) -> None:
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, path)
+        _fsync_dir(directory)
     except BaseException:
         if os.path.exists(tmp):
             os.unlink(tmp)
         raise
+
+
+# 调度层状态：queued = 已接单但尚未开跑；进程重启扫描时也需要重新入队执行。
+RESUMABLE_PHASES = ("queued", "partitioning", "joining")
 
 
 def load_state(job_dir: str) -> dict:
@@ -177,6 +194,11 @@ def load_state(job_dir: str) -> dict:
         }
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def save_state(job_dir: str, state: dict) -> None:
+    """原子且持久地保存状态：fsync 临时文件 → rename → fsync 目录。"""
+    _atomic_write_json(os.path.join(job_dir, STATE_FILE), state)
 
 
 def partition_csv(path: str, side: str, job_dir: str,
@@ -317,6 +339,11 @@ def run_join(job_dir: str,
     state = load_state(job_dir)
     state.setdefault("skipped_rows", {"tasks": 0, "machines": 0})
     state.setdefault("buckets", {})
+    if state.get("phase") == "queued":
+        # 调度层"已接单未开跑"：从这里进入正常的分桶阶段并落盘，
+        # 重启后据此判断该作业仍需执行。
+        state["phase"] = "partitioning"
+        _atomic_write_json(os.path.join(job_dir, STATE_FILE), state)
 
     tasks_csv = os.path.join(job_dir, "tasks.csv")
     machines_csv = os.path.join(job_dir, "machines.csv")
