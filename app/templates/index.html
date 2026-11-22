@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <h2>上传两份 CSV</h2>
+  <p class="muted">
+    任务表需含 <code>任务号</code> 与 <code>层摘要</code> 列；
+    构建机表需含 <code>来源构建机</code> 与 <code>层摘要</code> 列（支持英文列名
+    task_id / machine / digest 等）。相同层摘要的所有行对都会列出，每对仅一次。
+  </p>
+  <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+    <label>任务 CSV（任务号 + 层摘要）</label>
+    <input type="file" name="tasks_csv" accept=".csv,text/csv" required>
+    <label>构建机 CSV（来源构建机 + 层摘要）</label>
+    <input type="file" name="machines_csv" accept=".csv,text/csv" required>
+    <button type="submit">开始配对</button>
+  </form>
+  <p class="muted">
+    内存约束：任意时刻驻留输入记录 ≤ 256 条、暂存结果 ≤ 256 条；
+    配对在后台流式执行，写盘中断后可从断点继续，已确认批次不重算。
+  </p>
+</div>
+
+<div class="card">
+  <h2>历史作业</h2>
+  {% if jobs %}
+  <table>
+    <tr><th>作业号</th><th>状态</th><th>已确认配对（重启后保留）</th><th></th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td><code>{{ j.job_id[:12] }}</code></td>
+      <td>
+        {% if j.phase == 'done' %}<span class="badge b-done">已完成</span>
+        {% elif j.phase == 'failed' %}<span class="badge b-fail">失败</span>
+        {% elif j.running %}<span class="badge b-run">运行中</span>
+        {% else %}<span class="badge b-part">待恢复</span>{% endif %}
+      </td>
+      <td>{{ j.confirmed_pairs }}</td>
+      <td><a class="btn" href="{{ url_for('job_detail', job_id=j.job_id) }}">查看</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">暂无作业。</p>
+  {% endif %}
+</div>
+{% endblock %}

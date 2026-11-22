@@ -1,0 +1,15 @@
+services:
+  layer-matcher:
+    build: ./app
+    container_name: layer-matcher
+    ports:
+      - "8000:8000"
+    volumes:
+      # 命名卷持久化作业目录，容器重启后已确认批次仍在、可断点续跑
+      - layer_matcher_data:/data/jobs
+    environment:
+      - JOBS_DIR=/data/jobs
+    restart: unless-stopped
+
+volumes:
+  layer_matcher_data:

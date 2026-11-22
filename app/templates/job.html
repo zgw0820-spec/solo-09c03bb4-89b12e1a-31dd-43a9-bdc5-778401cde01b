@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}作业 {{ job.job_id[:12] }}{% endblock %}
+{% block body %}
+<div class="card" id="status-card">
+  <h2>作业 <code>{{ job.job_id[:12] }}</code></h2>
+  <p>
+    状态：
+    {% if job.phase == 'done' %}<span class="badge b-done">已完成</span>
+    {% elif job.phase == 'failed' %}<span class="badge b-fail">失败</span>
+    {% elif job.running %}<span class="badge b-run">运行中（{{ job.phase }}）</span>
+    {% else %}<span class="badge b-part">中断待恢复（{{ job.phase }}）</span>{% endif %}
+  </p>
+  <table>
+    <tr><th>已确认配对数（仅统计重启后仍保留在磁盘上的）</th><td id="pair-count">{{ job.confirmed_pairs }}</td></tr>
+    <tr><th>跳过的空摘要行（任务 / 构建机）</th>
+        <td>{{ job.skipped_rows.get('tasks', 0) }} / {{ job.skipped_rows.get('machines', 0) }}</td></tr>
+    <tr><th>下载</th>
+      <td>
+        {% if job.download_ready %}
+        <a class="btn" href="{{ url_for('download', job_id=job.job_id) }}">下载配对 CSV</a>
+        {% else %}
+        <span class="btn disabled">配对全部完成后才开放下载</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% if job.phase == 'failed' %}
+    <tr><th>错误</th><td>{{ job.get('error', '未知错误') }}</td></tr>
+    {% endif %}
+  </table>
+  <p class="muted" style="margin-top:14px">
+    下载清单列：<code>任务号, 来源构建机, 层摘要</code>。
+    若进程重启，本页自动从磁盘状态恢复并继续未完成部分，已确认批次无需重算。
+  </p>
+  <p><a href="{{ url_for('index') }}">← 返回首页</a></p>
+</div>
+
+{% if job.phase != 'done' and job.phase != 'failed' %}
+<script>
+async function refresh() {
+  const r = await fetch("{{ url_for('status', job_id=job.job_id) }}");
+  const j = await r.json();
+  document.getElementById('pair-count').textContent = j.confirmed_pairs;
+  if (j.phase === 'done' || j.phase === 'failed') { location.reload(); return; }
+  setTimeout(refresh, 1500);
+}
+setTimeout(refresh, 1500);
+</script>
+{% endif %}
+{% endblock %}
